@@ -3,8 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 import jwt from 'jsonwebtoken';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import admin from 'firebase-admin';
 
 dotenv.config();
@@ -12,23 +10,16 @@ dotenv.config();
 const serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
 const serviceAccount = JSON.parse(serviceAccountJson);
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
 // Initialize Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-// Firebase config for Firestore
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-};
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
+const db = admin.firestore();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
 
 // === SPOTIFY CREDS ===
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -95,16 +86,16 @@ app.get('/callback', async (req, res) => {
     const displayName = profile.display_name || 'Unknown User';
     const imageUrl = (profile.images && profile.images.length > 0) ? profile.images[0].url : null;
 
-    // Check if user already exists in Firebase
-    const userRef = doc(db, 'users', spotifyId);
-    const userSnap = await getDoc(userRef);
+    // Check if user already exists in Firestore
+    const userRef = db.collection('users').doc(spotifyId);
+    const userSnap = await userRef.get();
 
     let points;
-    if (!userSnap.exists()) {
+    if (!userSnap.exists) {
       // New user: assign random points
       points = Math.floor(Math.random() * (15000 - 1000 + 1)) + 1000;
 
-      await setDoc(userRef, {
+      await userRef.set({
         spotifyId,
         email,
         displayName,
