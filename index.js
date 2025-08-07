@@ -24,42 +24,47 @@ app.get('/login', (req, res) => {
 app.get('/callback', async (req, res) => {
   const code = req.query.code;
 
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: REDIRECT_URI,
-    }),
-  });
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI,
+      }),
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  const access_token = data.access_token;
+    const access_token = data.access_token;
 
-  const profileRes = await fetch('https://api.spotify.com/v1/me', {
-    headers: {
-      Authorization: `Bearer ${access_token}`,
-    },
-  });
+    const profileRes = await fetch('https://api.spotify.com/v1/me', {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
 
-  const profile = await profileRes.json();
+    const profile = await profileRes.json();
+    console.log('Spotify profile:', profile); // Debug log
 
-  // Optional: create a JWT token
-  const token = jwt.sign({ id: profile.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: profile.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-  res.json({
-    profile: {
-      name: profile.display_name,
-      email: profile.email,
-      image: profile.images?.[0]?.url,
-    },
-    token,
-  });
+    res.json({
+      profile: {
+        name: profile.display_name || 'Unknown User',
+        email: profile.email || 'Not provided',
+        image: (profile.images && profile.images.length > 0) ? profile.images[0].url : null,
+      },
+      token,
+    });
+  } catch (err) {
+    console.error('Error during Spotify auth flow:', err);
+    res.status(500).json({ error: 'Something went wrong during Spotify login.' });
+  }
 });
 
 // Run the server
